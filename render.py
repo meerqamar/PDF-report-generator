@@ -74,19 +74,20 @@ def build_html(data):
     """
     return html
 
-def render_pdf():
+def render_pdf(report_id="test"):
     # Ensure reports directory exists
     os.makedirs("reports", exist_ok=True)
     
     data = get_report_data()
     html_content = build_html(data)
     
+    pdf_path = f"reports/{report_id}.pdf"
+    
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.set_content(html_content)
         
-        pdf_path = "reports/test.pdf"
         page.pdf(
             path=pdf_path,
             format="A4",
@@ -94,7 +95,7 @@ def render_pdf():
         )
         browser.close()
         
-    print(f"PDF generated successfully at {pdf_path}")
+    return pdf_path
 
 if __name__ == "__main__":
-    render_pdf()
+    print(f"PDF generated successfully at {render_pdf()}")
