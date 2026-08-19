@@ -1,7 +1,7 @@
 import sqlite3
 import os
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from render import render_pdf
@@ -28,13 +28,29 @@ init_db()
 def health_check():
     return {"status": "ok"}
 
+class ReportRequest(BaseModel):
+    force: bool = False
+
 @app.post("/reports", status_code=status.HTTP_201_CREATED)
-def generate_report():
+def generate_report(request: ReportRequest, response: Response):
     conn = sqlite3.connect("report.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     today = datetime.now().strftime("%Y-%m-%d")
+    
+    # Idempotency check: if report for today exists and force is not True
+    if not request.force:
+        cursor.execute("SELECT id FROM reports WHERE created_at = ? ORDER BY id DESC LIMIT 1", (today,))
+        existing_report = cursor.fetchone()
+        if existing_report:
+            response.status_code = status.HTTP_200_OK
+            report_id = existing_report["id"]
+            conn.close()
+            return {
+                "id": report_id,
+                "file": f"/reports/{report_id}/file"
+            }
     
     # 1. Insert a new row to get an ID first (using a temporary path)
     cursor.execute("INSERT INTO reports (path, created_at) VALUES (?, ?)", ("", today))
