@@ -5,6 +5,7 @@ from report import get_report_data
 
 def build_html(data):
     today = datetime.now().strftime("%Y-%m-%d")
+    days = data.get("days_parameter", 7)
     
     # Build Top 5 products table rows
     top_5_rows = ""
@@ -21,20 +22,110 @@ def build_html(data):
     <html>
     <head>
         <title>Sales Report</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
         <style>
-            body {{ font-family: sans-serif; padding: 20px; }}
-            h1 {{ color: #333; }}
-            .summary {{ display: flex; gap: 40px; margin-bottom: 30px; }}
-            .stat {{ background: #f4f4f4; padding: 15px; border-radius: 8px; }}
-            table {{ width: 100%; border-collapse: collapse; margin-bottom: 30px; }}
-            th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
-            th {{ background-color: #eee; }}
+            @page {{
+                margin: 20mm;
+                @bottom-right {{
+                    content: "Page " counter(page) " of " counter(pages);
+                    font-family: 'Inter', sans-serif;
+                    font-size: 10px;
+                    color: #666;
+                }}
+                @bottom-left {{
+                    content: "The Little Shop Report";
+                    font-family: 'Inter', sans-serif;
+                    font-size: 10px;
+                    color: #666;
+                }}
+            }}
+            body {{ 
+                font-family: 'Inter', sans-serif; 
+                padding: 0; 
+                margin: 0;
+                color: #2c3e50;
+            }}
+            .header {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #3498db;
+                padding-bottom: 10px;
+                margin-bottom: 30px;
+            }}
+            .header h1 {{ 
+                color: #2c3e50; 
+                margin: 0;
+                font-size: 28px;
+            }}
+            .header .logo {{
+                font-size: 24px;
+                font-weight: 700;
+                color: #3498db;
+            }}
+            .summary {{ 
+                display: flex; 
+                gap: 20px; 
+                margin-bottom: 40px; 
+            }}
+            .stat {{ 
+                background: linear-gradient(135deg, #f6f8f9 0%, #e5ebee 100%);
+                padding: 20px; 
+                border-radius: 12px; 
+                flex: 1;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            }}
+            .stat h3 {{
+                margin: 0 0 10px 0;
+                font-size: 14px;
+                color: #7f8c8d;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }}
+            .stat p {{
+                margin: 0;
+                font-size: 28px;
+                font-weight: 700;
+                color: #2c3e50;
+            }}
+            h2 {{
+                color: #34495e;
+                margin-bottom: 15px;
+                font-size: 20px;
+                border-bottom: 1px solid #ecf0f1;
+                padding-bottom: 8px;
+            }}
+            table {{ 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin-bottom: 40px; 
+                font-size: 14px;
+            }}
+            th, td {{ 
+                border-bottom: 1px solid #ecf0f1; 
+                padding: 12px 15px; 
+                text-align: left; 
+            }}
+            th {{ 
+                background-color: #f8f9fa; 
+                font-weight: 600;
+                color: #34495e;
+            }}
+            tbody tr:nth-of-type(even) {{
+                background-color: #fcfcfc;
+            }}
             /* Fix page breaks */
             tr {{ break-inside: avoid; }}
         </style>
     </head>
     <body>
-        <h1>Sales Report - {today}</h1>
+        <div class="header">
+            <div>
+                <h1>Sales Report</h1>
+                <p style="margin: 5px 0 0 0; color: #7f8c8d;">Generated on {today} • Last {days} days</p>
+            </div>
+            <div class="logo">🛍️ The Little Shop</div>
+        </div>
         
         <div class="summary">
             <div class="stat">
@@ -57,16 +148,13 @@ def build_html(data):
             </tbody>
         </table>
         
-        <!-- Long table to test page breaks -->
-        <h2>Orders Per Day (Last 7 Days)</h2>
+        <h2>Orders Per Day (Last {days} Days)</h2>
         <table>
             <thead>
                 <tr><th>Date</th><th>Orders</th></tr>
             </thead>
             <tbody>
                 {orders_rows}
-                <!-- Replicate rows to force a page break intentionally for testing Stage 3 -->
-                {orders_rows * 10}
             </tbody>
         </table>
     </body>
@@ -74,14 +162,16 @@ def build_html(data):
     """
     return html
 
-def render_pdf(report_id="test"):
+def render_pdf(report_id="test", days=7):
     # Ensure reports directory exists
     os.makedirs("reports", exist_ok=True)
     
-    data = get_report_data()
+    data = get_report_data(days=days)
     html_content = build_html(data)
     
-    pdf_path = f"reports/{report_id}.pdf"
+    today = datetime.now().strftime("%Y-%m-%d")
+    filename = f"sales-report-{today}-{report_id}.pdf"
+    pdf_path = f"reports/{filename}"
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -91,7 +181,11 @@ def render_pdf(report_id="test"):
         page.pdf(
             path=pdf_path,
             format="A4",
-            print_background=True
+            print_background=True,
+            display_header_footer=True, # enables the @page headers/footers
+            header_template="<span></span>", # Empty header allows @page CSS to take over
+            footer_template="<span></span>", # Empty footer allows @page CSS to take over
+            margin={"top": "20mm", "bottom": "20mm", "left": "20mm", "right": "20mm"}
         )
         browser.close()
         

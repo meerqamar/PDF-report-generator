@@ -30,6 +30,7 @@ def health_check():
 
 class ReportRequest(BaseModel):
     force: bool = False
+    days: int = 7
 
 @app.post("/reports", status_code=status.HTTP_201_CREATED)
 def generate_report(request: ReportRequest, response: Response):
@@ -58,7 +59,7 @@ def generate_report(request: ReportRequest, response: Response):
     report_id = cursor.lastrowid
     
     # 2. Render the PDF
-    pdf_path = render_pdf(report_id)
+    pdf_path = render_pdf(report_id, days=request.days)
     
     # 3. Update the path in the database
     cursor.execute("UPDATE reports SET path = ? WHERE id = ?", (pdf_path, report_id))
@@ -69,6 +70,26 @@ def generate_report(request: ReportRequest, response: Response):
         "id": report_id,
         "file": f"/reports/{report_id}/file"
     }
+
+@app.get("/reports")
+def list_reports():
+    conn = sqlite3.connect("report.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT id, path, created_at FROM reports ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return [
+        {
+            "id": row["id"],
+            "path": row["path"],
+            "created_at": row["created_at"],
+            "file": f"/reports/{row['id']}/file"
+        }
+        for row in rows
+    ]
 
 @app.get("/reports/{report_id}")
 def get_report(report_id: int):
